@@ -36,7 +36,7 @@ def predire(image_path, model):
 if __name__ == "__main__":
     model = charger_modele()
 
-    image_test = os.path.join("data", "8ta", "IMG_20260805_095404.jpg")
+    image_test = os.path.join("data", "rob", "IMG_20260805_094857.jpg")
 
     classe, confiance = predire(image_test, model)
     print(f"Image: {image_test}")
