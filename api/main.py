@@ -7,9 +7,10 @@ import io
 import sys
 import os
 
-# Permet d'importer model.py depuis src/
+# Permet d'importer model.py et pieces_info.py depuis src/
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 from model import creer_modele
+from pieces_info import INFOS_PIECES
 
 app = FastAPI(title="API Identification Pièces Archéologiques")
 
@@ -50,7 +51,11 @@ async def predire_image(file: UploadFile = File(...)):
         probabilities = torch.softmax(outputs, dim=1)[0]
         confidence, predicted_idx = torch.max(probabilities, 0)
 
+    classe_predite = classes[predicted_idx.item()]
+    infos = INFOS_PIECES.get(classe_predite, {})
+
     return {
-        "classe_predite": classes[predicted_idx.item()],
-        "confiance": round(confidence.item() * 100, 1)
+        "classe_predite": classe_predite,
+        "confiance": round(confidence.item() * 100, 1),
+        "informations": infos
     }
