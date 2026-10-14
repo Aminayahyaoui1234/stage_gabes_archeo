@@ -13,4 +13,4 @@ for categorie in sorted(os.listdir(data_dir)):
         total += nb
         print(f"{categorie}: {nb} images")
 
-print(f"\nTotal: {total} images sur {len([d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))])} catégories")
+print("\nTotal: {total} images sur {len([d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))])} catégories")

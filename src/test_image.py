@@ -17,3 +17,5 @@ else:
     cv2.imshow("Piece archeologique", img_resized)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
+    

@@ -1,6 +1,11 @@
 import torch
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Subset
+from sklearn.model_selection import train_test_split
+
+# --- Graine aléatoire fixée (reproductibilité) ---
+SEED = 42
+torch.manual_seed(SEED)
 
 # --- Transformations pour l'entraînement (avec augmentation) ---
 train_transform = transforms.Compose([
@@ -21,34 +26,46 @@ val_transform = transforms.Compose([
                           std=[0.229, 0.224, 0.225])
 ])
 
-# --- Charger le dataset complet ---
-full_dataset = datasets.ImageFolder(root="data", transform=train_transform)
+# --- Deux datasets sur les mêmes images, avec des transformations différentes ---
+train_full = datasets.ImageFolder(root="data", transform=train_transform)
+val_full = datasets.ImageFolder(root="data", transform=val_transform)
+full_dataset = train_full  # nom conservé pour les autres scripts
 
-print("Classes détectées:", full_dataset.classes)
-print("Nombre total d'images:", len(full_dataset))
+# --- Split train / validation (80% / 20%), stratifié et reproductible ---
+targets = train_full.targets
+train_idx, val_idx = train_test_split(
+    list(range(len(targets))),
+    test_size=0.2, stratify=targets, random_state=SEED)
 
-# --- Split train / validation (80% / 20%) ---
-val_size = int(0.2 * len(full_dataset))
-train_size = len(full_dataset) - val_size
+train_dataset = Subset(train_full, train_idx)  # avec augmentation
+val_dataset = Subset(val_full, val_idx)        # sans augmentation
 
-train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+train_size = len(train_idx)
+val_size = len(val_idx)
 
-print(f"Train: {train_size} images | Validation: {val_size} images")
+# --- Calcul des poids de classes : N / (K * n_c), sur l'ensemble d'entraînement ---
+nb_classes = len(train_full.classes)
+class_counts = [0] * nb_classes
+for i in train_idx:
+    class_counts[targets[i]] += 1
 
-# --- Calcul des poids de classes (pour compenser le déséquilibre) ---
-class_counts = [0] * len(full_dataset.classes)
-for _, label in full_dataset.samples:
-    class_counts[label] += 1
-
-class_weights = [1.0 / c for c in class_counts]
-print("Poids par classe:", dict(zip(full_dataset.classes, [round(w, 4) for w in class_weights])))
+class_weights = torch.tensor(
+    [train_size / (nb_classes * c) for c in class_counts],
+    dtype=torch.float)
 
 # --- DataLoaders ---
 train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False)
 
-# --- Test rapide : afficher un batch ---
-images, labels = next(iter(train_loader))
-print("\nUn batch d'entraînement:")
-print("Shape des images:", images.shape)  # [batch_size, 3, 224, 224]
-print("Labels:", labels)
+# --- Test rapide (uniquement si on lance ce fichier directement) ---
+if __name__ == "__main__":
+    print("Classes détectées:", train_full.classes)
+    print("Nombre total d'images:", len(train_full))
+    print(f"Train: {train_size} images | Validation: {val_size} images")
+    print("Poids par classe:", dict(zip(train_full.classes,
+                                        [round(w, 4) for w in class_weights.tolist()])))
+
+    images, labels = next(iter(train_loader))
+    print("\nUn batch d'entraînement:")
+    print("Shape des images:", images.shape)  # [batch_size, 3, 224, 224]
+    print("Labels:", labels)

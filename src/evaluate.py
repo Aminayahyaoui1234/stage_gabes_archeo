@@ -1,35 +1,20 @@
+import os
 import torch
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, random_split
+from sklearn.metrics import classification_report, confusion_matrix
+
 from model import creer_modele
+from load_dataset import full_dataset, val_loader, val_size
 
-# --- Mêmes transformations que pour la validation (pas d'augmentation) ---
-val_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
-
-# --- Recharger le même split qu'à l'entraînement ---
-full_dataset = datasets.ImageFolder(root="data", transform=val_transform)
 classes = full_dataset.classes
-
-val_size = int(0.2 * len(full_dataset))
-train_size = len(full_dataset) - val_size
-
-# IMPORTANT : même seed que train.py pour retrouver le même split
-torch.manual_seed(42)
-train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-
-val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False)
 
 # --- Charger le modèle entraîné ---
 model = creer_modele(nb_classes=len(classes))
 model.load_state_dict(torch.load("models/resnet18_pieces_archeo.pth", map_location="cpu"))
 model.eval()
 
-print(f"Évaluation sur {len(val_dataset)} images de validation\n")
+print(f"Evaluation sur {val_size} images de validation\n")
 print("Classes:", classes)
+
 # --- Collecter toutes les prédictions et vraies étiquettes ---
 all_preds = []
 all_labels = []
@@ -41,24 +26,41 @@ with torch.no_grad():
         all_preds.extend(predicted.tolist())
         all_labels.extend(labels.tolist())
 
-# --- Construire la matrice de confusion manuellement ---
-nb_classes = len(classes)
-matrice = [[0] * nb_classes for _ in range(nb_classes)]
+# --- Matrice de confusion ---
+indices = list(range(len(classes)))
+matrice = confusion_matrix(all_labels, all_preds, labels=indices)
 
-for vrai, predit in zip(all_labels, all_preds):
-    matrice[vrai][predit] += 1
-
-# --- Affichage lisible ---
-print("\nMatrice de confusion (lignes = vraie classe, colonnes = classe prédite)\n")
-
-en_tete = "          " + "".join(f"{c[:6]:>8}" for c in classes)
-print(en_tete)
-
+print("\nMatrice de confusion (lignes = vraie classe, colonnes = classe predite)\n")
+print("          " + "".join(f"{c[:6]:>8}" for c in classes))
 for i, ligne in enumerate(matrice):
-    texte_ligne = f"{classes[i][:8]:<10}" + "".join(f"{val:>8}" for val in ligne)
-    print(texte_ligne)
+    print(f"{classes[i][:8]:<10}" + "".join(f"{int(v):>8}" for v in ligne))
 
 # --- Précision globale ---
-correct = sum(matrice[i][i] for i in range(nb_classes))
-total = sum(sum(ligne) for ligne in matrice)
-print(f"\nPrécision globale sur validation: {100 * correct / total:.1f}% ({correct}/{total})")
+correct = int(sum(matrice[i][i] for i in indices))
+total = int(matrice.sum())
+print(f"\nPrecision globale sur validation: {100 * correct / total:.1f}% ({correct}/{total})")
+
+# --- Précision, rappel, F1 par classe ---
+print("\nMetriques par classe\n")
+print(classification_report(all_labels, all_preds, labels=indices,
+                            target_names=classes, digits=3, zero_division=0))
+
+# --- Sauvegarde de la matrice de confusion en image ---
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import ConfusionMatrixDisplay
+
+    os.makedirs("image/ia_muusee", exist_ok=True)
+    fig, ax = plt.subplots(figsize=(7, 6))
+    ConfusionMatrixDisplay(matrice, display_labels=classes).plot(
+        ax=ax, cmap="Blues", colorbar=False)
+    ax.set_xlabel("Classe prédite")
+    ax.set_ylabel("Vraie classe")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    fig.savefig("image/ia_muusee/confusion.png", dpi=200)
+    print("Image enregistree : image/ia_muusee/confusion.png")
+except ImportError:
+    print("matplotlib n'est pas installe : lancer 'pip install matplotlib' puis relancer.")

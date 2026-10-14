@@ -21,10 +21,10 @@ INFOS_PIECES = {
         "epoque": "À compléter",
     },
     "bal8a": {
-        "nom_complet": "À compléter",
-        "description": "À compléter",
-        "origine": "À compléter",
-        "epoque": "À compléter",
+        "nom_complet": "bal8a",
+        "description": "chlaka t3 9bal",
+        "origine": "origine tunisienne",
+        "epoque": "ltali barcha",
     },
     "nawar": {
         "nom_complet": "À compléter",
